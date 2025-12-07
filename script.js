@@ -18,11 +18,35 @@ let game_state = 'Start';
 img.style.display = 'none';
 message.classList.add('messageStyle');
 
-document.addEventListener('keydown', (e) => {
-    
-    if(e.key == 'Enter' && game_state != 'Play'){
-        document.querySelectorAll('.pipe_sprite').forEach((e) => {
-            e.remove();
+// =================================================================
+// 1. DUAL INPUT LISTENERS (TOUCH AND KEYBOARD)
+// =================================================================
+
+// Mobile Touch Events
+document.addEventListener('touchstart', handleInputStart);
+document.addEventListener('touchend', handleInputEnd);
+
+// Desktop Keyboard Events
+document.addEventListener('keydown', handleInputStart);
+document.addEventListener('keyup', handleInputEnd);
+
+
+function handleInputStart(e) {
+    // Determine if the event is a key press or a touch.
+    const isStartKey = (e.key === 'Enter');
+    const isFlapKey = (e.key === 'ArrowUp' || e.key === ' ');
+    const isTouch = (e.type === 'touchstart');
+
+    // Prevent default browser actions for touches and key presses
+    if (isTouch || isFlapKey) {
+        e.preventDefault(); 
+    }
+
+    // --- GAME START / RESTART LOGIC ---
+    // Triggered by 'Enter' key OR any 'touchstart'
+    if (game_state !== 'Play' && (isStartKey || isTouch)) {
+        document.querySelectorAll('.pipe_sprite').forEach((el) => {
+            el.remove();
         });
         img.style.display = 'block';
         bird.style.top = '40vh';
@@ -32,10 +56,44 @@ document.addEventListener('keydown', (e) => {
         score_val.innerHTML = '0';
         message.classList.remove('messageStyle');
         play();
+        
+    } 
+    // --- FLAP UP LOGIC ---
+    // Triggered by 'ArrowUp'/'Space' key OR any 'touchstart'
+    else if (game_state === 'Play' && (isFlapKey || isTouch)) {
+        img.src = 'images/Bird-2.png'; // Change bird image for flap animation
+        // bird_dy is only available inside the play function's scope.
+        // We need to trigger the gravity function to apply the jump.
+        if (typeof window.triggerJump === 'function') {
+            window.triggerJump(); 
+        }
     }
-});
+}
+
+function handleInputEnd(e) {
+    const isFlapKeyRelease = (e.key === 'ArrowUp' || e.key === ' ');
+    const isTouchEnd = (e.type === 'touchend');
+
+    // Reset bird image after key release or touch release
+    if (game_state === 'Play' && (isFlapKeyRelease || isTouchEnd)) {
+        img.src = 'images/Bird.png'; // Reset bird image
+    }
+}
+
+
+// =================================================================
+// 2. MODIFIED PLAY FUNCTION (Exposing the jump function globally)
+// =================================================================
+
+let bird_dy = 0; // Move bird_dy to global scope or outside apply_gravity for access
 
 function play(){
+    
+    // Define the jump trigger function
+    window.triggerJump = function() {
+        bird_dy = -7.6; // Apply upward velocity
+    };
+    
     function move(){
         if(game_state != 'Play') return;
 
@@ -49,14 +107,14 @@ function play(){
             }else{
                 if(bird_props.left < pipe_sprite_props.left + pipe_sprite_props.width && bird_props.left + bird_props.width > pipe_sprite_props.left && bird_props.top < pipe_sprite_props.top + pipe_sprite_props.height && bird_props.top + bird_props.height > pipe_sprite_props.top){
                     game_state = 'End';
-                    message.innerHTML = 'Game Over'.fontcolor('red') + '<br>Press Enter To Restart';
+                    message.innerHTML = '<span style="color: red;">Game Over</span>' + '<br>Touch or Press Enter To Restart';
                     message.classList.add('messageStyle');
                     img.style.display = 'none';
                     sound_die.play();
                     return;
                 }else{
                     if(pipe_sprite_props.right < bird_props.left && pipe_sprite_props.right + move_speed >= bird_props.left && element.increase_score == '1'){
-                        score_val.innerHTML =+ score_val.innerHTML + 1;
+                        score_val.innerHTML = parseInt(score_val.innerHTML) + 1;
                         sound_point.play();
                     }
                     element.style.left = pipe_sprite_props.left - move_speed + 'px';
@@ -67,27 +125,19 @@ function play(){
     }
     requestAnimationFrame(move);
 
-    let bird_dy = 0;
+    
     function apply_gravity(){
         if(game_state != 'Play') return;
         bird_dy = bird_dy + grativy;
-        document.addEventListener('keydown', (e) => {
-            if(e.key == 'ArrowUp' || e.key == ' '){
-                img.src = 'images/Bird-2.png';
-                bird_dy = -7.6;
-            }
-        });
-
-        document.addEventListener('keyup', (e) => {
-            if(e.key == 'ArrowUp' || e.key == ' '){
-                img.src = 'images/Bird.png';
-            }
-        });
-
+        
+        // Removed old keydown/keyup listeners here!
+        
         if(bird_props.top <= 0 || bird_props.bottom >= background.bottom){
             game_state = 'End';
             message.style.left = '28vw';
-            window.location.reload();
+            // Note: window.location.reload() immediately restarts the game.
+            // If you want to show the 'Game Over' message longer, remove this line.
+            window.location.reload(); 
             message.classList.remove('messageStyle');
             return;
         }
